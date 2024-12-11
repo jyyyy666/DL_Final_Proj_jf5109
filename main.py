@@ -1,76 +1,75 @@
+from dataset import create_wall_dataloader
+from evaluator import ProbingEvaluator
 import torch
-from torch.utils.data import DataLoader
-from configs import ConfigBase
-from evaluator import ProbingEvaluator, ProbingConfig
-from dataset import WallDataset
+from models import MockModel
+import glob
 
 
-class MainConfig(ConfigBase):
-    device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
-    batch_size: int = 64
-    num_workers: int = 4
-    repr_dim: int = 256
-    action_dim: int = 2
-    model_weights_path: str = 'model_weights.pth'
+def get_device():
+    """Check for GPU availability."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Using device:", device)
+    return device
 
 
-def load_data(config):
-    # Paths to the datasets
-    probe_train_path = '/scratch/DL24FA/probe_normal/train/'
-    probe_normal_val_path = '/scratch/DL24FA/probe_normal/val/'
-    probe_wall_val_path = '/scratch/DL24FA/probe_wall/val/'
+def load_data(device):
+    """Load training and validation datasets."""
+    data_path = "/scratch/DL24FA"
 
-    # Create datasets
-    probe_train_ds = WallDataset(probe_train_path, batch_size=config.batch_size)
-    probe_normal_val_ds = WallDataset(probe_normal_val_path, batch_size=config.batch_size)
-    probe_wall_val_ds = WallDataset(probe_wall_val_path, batch_size=config.batch_size)
+    # Create training dataloader
+    probe_train_ds = create_wall_dataloader(
+        data_path=f"{data_path}/probe_normal/train",
+        probing=True,
+        device=device,
+        batch_size=64,  # Specify batch size here
+        train=True,
+    )
 
-    # Dictionary of validation datasets
-    probe_val_ds = {
-        'normal': probe_normal_val_ds,
-        'wall': probe_wall_val_ds,
-    }
+    # Create validation dataloaders
+    probe_val_normal_ds = create_wall_dataloader(
+        data_path=f"{data_path}/probe_normal/val",
+        probing=True,
+        device=device,
+        batch_size=64,  # Specify batch size for validation
+        train=False,
+    )
+
+    probe_val_wall_ds = create_wall_dataloader(
+        data_path=f"{data_path}/probe_wall/val",
+        probing=True,
+        device=device,
+        batch_size=64,  # Specify batch size for validation
+        train=False,
+    )
+
+    probe_val_ds = {"normal": probe_val_normal_ds, "wall": probe_val_wall_ds}
 
     return probe_train_ds, probe_val_ds
 
 
-def load_model(config):
+def load_model():
     """Load or initialize the model."""
-    ################################################################################
-    # TODO: Initialize and load your model
-    from models import JEPA_Model
+    # TODO: Replace MockModel with your trained model
+    # Example: Define a simple model or load your pre-trained model
+    class MockModel(torch.nn.Module):
+        def __init__(self):
+            super(MockModel, self).__init__()
+            self.layer = torch.nn.Linear(10, 1)  # Example layer
 
-    model = JEPA_Model(
-        repr_dim=config.repr_dim,
-        action_dim=config.action_dim,
-        device=config.device
-    ).to(config.device)
+        def forward(self, x):
+            return self.layer(x)
 
-    # Load trained weights
-    model_weights_path = config.model_weights_path
-    model.load_state_dict(torch.load(model_weights_path, map_location=config.device))
-
-    model.eval()  # Set model to evaluation mode
-    ################################################################################
+    model = MockModel().to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     return model
 
 
-def evaluate_model():
-    config = MainConfig()
-
-    # Load data
-    probe_train_ds, probe_val_ds = load_data(config)
-
-    # Load model
-    model = load_model(config)
-
-    # Initialize the evaluator
+def evaluate_model(device, model, probe_train_ds, probe_val_ds):
+    """Evaluate the model using the provided datasets."""
     evaluator = ProbingEvaluator(
-        device=config.device,
+        device=device,
         model=model,
         probe_train_ds=probe_train_ds,
         probe_val_ds=probe_val_ds,
-        config=ProbingConfig(),
         quick_debug=False,
     )
 
@@ -80,10 +79,12 @@ def evaluate_model():
     # Evaluate the model
     avg_losses = evaluator.evaluate_all(prober=prober)
 
-    # Print evaluation results
-    for dataset_name, loss in avg_losses.items():
-        print(f'Average evaluation loss on {dataset_name} dataset: {loss:.4f}')
+    for probe_attr, loss in avg_losses.items():
+        print(f"{probe_attr} loss: {loss}")
 
 
-if __name__ == '__main__':
-    evaluate_model()
+if __name__ == "__main__":
+    device = get_device()  # Get the device
+    probe_train_ds, probe_val_ds = load_data(device)  # Load datasets
+    model = load_model()  # Load the model
+    evaluate_model(device, model, probe_train_ds, probe_val_ds)  # Evaluate the model
