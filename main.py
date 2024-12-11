@@ -1,7 +1,7 @@
 from dataset import create_wall_dataloader
 from evaluator import ProbingEvaluator
 import torch
-from models import MockModel
+from models import JEPA_Model
 import glob
 
 
@@ -51,15 +51,15 @@ def load_model():
     """Load or initialize the model."""
     # TODO: Replace MockModel with your trained model
     # Example: Define a simple model or load your pre-trained model
-    class MockModel(torch.nn.Module):
+    class JEPA_Model(torch.nn.Module):
         def __init__(self):
-            super(MockModel, self).__init__()
+            super(JEPA_Model, self).__init__()
             self.layer = torch.nn.Linear(10, 1)  # Example layer
 
         def forward(self, x):
             return self.layer(x)
 
-    model = MockModel().to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    model = JEPA_Model().to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     return model
 
 
